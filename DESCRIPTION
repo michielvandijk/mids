@@ -16,3 +16,4 @@ Encoding: UTF-8
 LazyData: true
 URL: https://github.com/michielvandijk/mids
 BugReports: https://github.com/michielvandijk/mids/issues
+RoxygenNote: 7.3.2
