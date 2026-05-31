@@ -54,11 +54,17 @@ subnat_hh_proj <- readRDS(file.path(param$model_path,
 # PREPARE -------------------------------------------------------------------------------
 # ========================================================================================
 
-# Create region - target zone id
+
+# Remove MLT and LUX
 adm_list <- adm_list_raw |>
+  filter(!adm0_code %in% c("MLT", "LUX", "NLD"))
+
+# Create region - target zone id
+adm_list <- adm_list |>
   dplyr::select(target_zone = adm2_code, region = adm1_name) |>
   distinct() |>
   mutate(reg_tz = paste(region, target_zone, sep = "-x-"))
+
 
 
 # ========================================================================================
@@ -110,19 +116,27 @@ tic()
 library(ipfr)
 sim_by <- ssp_y$ssp_y |>
   set_names() |>
-  map(reweigh, adm_list$reg_tz[adm_list$reg_tz %in% c("OSTÖSTERREICH-x-AT11")], hh_survey, per_survey, bm_by, param,
+  map(reweigh, adm_list$reg_tz[adm_list$reg_tz %in% c("NOORD-NEDERLAND-x-NL13")], hh_survey, per_survey, bm_by, param,
       verbose = TRUE, reg_sample = TRUE, max_iter = 500, max_ratio = 20, min_ratio = 0.01, relative_gap = 0.05,
       absolute_diff = 10, parallel = TRUE, output = temp_path)
 toc()
 names(sim_by) <- ssp_y$ssp_y
 
+# Remove brussels which does not have rural hh in survey
+adm_list <- adm_list |>
+  filter(!reg_tz %in% c("RÉGION DE BRUXELLES-CAPITALE/BRUSSELS HOOFDSTEDELIJK GEWEST-x-BE10"))
+
+
+tic()
+library(ipfr)
 sim_by <- ssp_y$ssp_y |>
   set_names() |>
-  map(reweigh, adm_list$reg_tz[adm_list$reg_tz %in% c("OSTÖSTERREICH-x-AT11")], hh_survey, per_survey, bm_by, param,
+  map(reweigh, adm_list$reg_tz, hh_survey, per_survey, bm_by, param,
       verbose = TRUE, reg_sample = TRUE, max_iter = 500, max_ratio = 20, min_ratio = 0.01, relative_gap = 0.05,
       absolute_diff = 10, parallel = TRUE, output = temp_path)
 toc()
 names(sim_by) <- ssp_y$ssp_y
+
 
 # ========================================================================================
 # DEBUG ----------------------------------------------------------------------------------
@@ -130,7 +144,7 @@ names(sim_by) <- ssp_y$ssp_y
 
 # Set input parameters
 ssp_y <- ssp_y$ssp_y[1]
-reg_tz <- "OSTÖSTERREICH-x-AT11"
+reg_tz <- "NOORD-NEDERLAND-x-NL13"
 hh_s <- hh_survey |> as_tibble()
 per_s <- per_survey |> as_tibble()
 bm <- bm_by
