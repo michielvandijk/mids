@@ -103,6 +103,8 @@ mids_par <- function(model_path = NULL,
     stop("end_year must be numeric", call. = FALSE)
   }
 
+  file_region_id <- ifelse(multi_country_run, multi_country_region, iso3c)
+
   param <- list(
     iso3c = iso3c,
     country = countrycode::countrycode(iso3c, "iso3c", "country.name"),
@@ -110,6 +112,7 @@ mids_par <- function(model_path = NULL,
     continent = countrycode::countrycode(iso3c, "iso3c", "continent"),
     multi_country_run = multi_country_run,
     multi_country_region = multi_country_region,
+    file_region_id = file_region_id,
     adm_level = adm_level,
     micro_year = micro_year,
     start_year = start_year,

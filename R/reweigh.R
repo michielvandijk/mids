@@ -59,9 +59,9 @@ reweigh <- function(ssp_y, reg_tz, hh_s, per_s, bm, param, reg_sample = FALSE,
   if (!is.null(output)) {
     dir.create(output, showWarnings = FALSE)
     if(reg_sample) {
-      file_name <- glue::glue("{ssp_y}_adm1_sample_{param$iso3c}.rds")
+      file_name <- glue::glue("{ssp_y}_adm1_sample_{param$file_region_id}.rds")
     } else {
-      file_name <- glue::glue("{ssp_y}_full_sample_{param$iso3c}.rds")
+      file_name <- glue::glue("{ssp_y}_full_sample_{param$file_region_id}.rds")
       }
     saveRDS(sim, file.path(output, file_name))
   }

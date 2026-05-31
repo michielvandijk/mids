@@ -17,32 +17,37 @@ source(here::here("inst/model_setup_for_debug.r"))
 # ========================================================================================
 
 # Survey
-hh_db <- readRDS(file.path(param$model_path, glue("micro_data/survey_hh_db_{param$iso3c}.rds")))
-per_db <- readRDS(file.path(param$model_path, glue("micro_data/survey_per_db_{param$iso3c}.rds")))
+if(param$multi_country_run) {
+  hh_db <- readRDS(file.path(param$model_path, glue("micro_data/survey_hh_db_{param$multi_country_region}.rds")))
+  per_db <- readRDS(file.path(param$model_path, glue("micro_data/survey_per_db_{param$multi_country_region}.rds")))
+} else {
+  hh_db <- readRDS(file.path(param$model_path, glue("micro_data/survey_hh_db_{param$iso3c}.rds")))
+  per_db <- readRDS(file.path(param$model_path, glue("micro_data/survey_per_db_{param$iso3c}.rds")))
+}
+
 
 # Adm_list
-adm_list_raw <- read_rds(file.path(param$model_path, glue("adm/adm_list_{param$iso3c}.rds")))
+if(param$multi_country_run) {
+  adm_list_raw <- readRDS(file.path(param$model_path, glue("adm/adm_list_{param$multi_country_region}.rds")))
+} else {
+  adm_list_raw <- readRDS(file.path(param$model_path, glue("adm/adm_list_{param$iso3c}.rds")))
+}
 
 # Subnat urban-rural projections
-subnat_urban_rural <- readRDS(file.path(param$model_path,
-                                        glue("constraints/subnat_urban_rural_census_{param$iso3c}.rds"))) |>
-  mutate(scenario = "ssp2")
+subnat_urban_rural_proj <- readRDS(file.path(param$model_path,
+                                                 glue("constraints/subnat_urban_rural_proj_{param$multi_country_region}.rds")))
 
 # Subnat age_sex projections
-subnat_age_sex <- readRDS(file.path(param$model_path,
-                                    glue("constraints/subnat_age_sex_census_{param$iso3c}.rds"))) |>
-  mutate(scenario = "ssp2")
+subnat_age_sex_proj <- readRDS(file.path(param$model_path,
+                                             glue("constraints/subnat_age_sex_proj_{param$multi_country_region}.rds")))
 
 # Subnat occupation projections
-subnat_occupation <- readRDS(file.path(param$model_path,
-                                       glue("constraints/subnat_occupation_census_{param$iso3c}.rds"))) |>
-  mutate(scenario = "ssp2") |>
-  rename(occ = occupation)
+subnat_occ_proj <- readRDS(file.path(param$model_path,
+                                         glue("constraints/subnat_occupation_proj_{param$multi_country_region}.rds")))
 
 # Subnat household projections
-subnat_household <- readRDS(file.path(param$model_path,
-                                      glue("constraints/subnat_household_census_{param$iso3c}.rds"))) |>
-  mutate(scenario = "ssp2")
+subnat_hh_proj <- readRDS(file.path(param$model_path,
+                                        glue("constraints/subnat_hh_proj_{param$multi_country_region}.rds")))
 
 
 # ========================================================================================
@@ -85,8 +90,8 @@ per_survey <- per_db |>
 
 # CONSTRAINTS ------------------------------------------------------------------------------
 
-bm_by <- prepare_benchmark(subnat_household, subnat_urban_rural,
-                        subnat_age_sex, subnat_occupation)
+bm_by <- prepare_benchmark(subnat_hh_proj, subnat_urban_rural_proj,
+                        subnat_age_sex_proj, subnat_occ_proj)
 
 
 # SIMULATION -------------------------------------------------------------------------------
@@ -101,17 +106,23 @@ ssp_y <- expand.grid(ssp = c("ssp2"), y = 2020, stringsAsFactors = FALSE) |>
   mutate(ssp_y = paste(ssp, y, sep = "_"))
 
 
-#  Distrito Federal-x-009013
 tic()
 library(ipfr)
 sim_by <- ssp_y$ssp_y |>
   set_names() |>
-  map(reweigh, adm_list$reg_tz[adm_list$reg_tz %in% c("Distrito Federal-x-009013")], hh_survey, per_survey, bm_by, param,
+  map(reweigh, adm_list$reg_tz[adm_list$reg_tz %in% c("OSTÖSTERREICH-x-AT11")], hh_survey, per_survey, bm_by, param,
       verbose = TRUE, reg_sample = TRUE, max_iter = 500, max_ratio = 20, min_ratio = 0.01, relative_gap = 0.05,
       absolute_diff = 10, parallel = TRUE, output = temp_path)
 toc()
 names(sim_by) <- ssp_y$ssp_y
 
+sim_by <- ssp_y$ssp_y |>
+  set_names() |>
+  map(reweigh, adm_list$reg_tz[adm_list$reg_tz %in% c("OSTÖSTERREICH-x-AT11")], hh_survey, per_survey, bm_by, param,
+      verbose = TRUE, reg_sample = TRUE, max_iter = 500, max_ratio = 20, min_ratio = 0.01, relative_gap = 0.05,
+      absolute_diff = 10, parallel = TRUE, output = temp_path)
+toc()
+names(sim_by) <- ssp_y$ssp_y
 
 # ========================================================================================
 # DEBUG ----------------------------------------------------------------------------------
@@ -119,7 +130,7 @@ names(sim_by) <- ssp_y$ssp_y
 
 # Set input parameters
 ssp_y <- ssp_y$ssp_y[1]
-reg_tz <- "Distrito Federal-x-009002"
+reg_tz <- "OSTÖSTERREICH-x-AT11"
 hh_s <- hh_survey |> as_tibble()
 per_s <- per_survey |> as_tibble()
 bm <- bm_by
@@ -132,6 +143,14 @@ relative_gap = 0.05
 absolute_diff = 10
 parallel = FALSE
 output = NULL
+
+# ========================================================================================
+# TO IMPROVE -----------------------------------------------------------------------------
+# ========================================================================================
+
+#' Need to build in a way to check if all hh_id in hh_db are also present in per_survey.
+#' If not there will be NA values and errors.
+
 
 # Loop over year and ssp combinations
 reweigh <- function(ssp_y, reg_tz, hh_s, per_s, bm, param, reg_sample = FALSE,
@@ -205,12 +224,14 @@ ipf_seed <- function(reg_tz, hh_s, per_s, bm, p, reg_sample = FALSE, verbose = F
   } else {
     hh_s_r <- hh_s
   }
-
   hh_s_r <- hh_s_r[names(hh_s_r)[!names(hh_s_r) %in% c("region")]]
-
+  miss_var_summary(hh_s_r)
   hh_t_r <- list()
   hh_t_r[["hh_number"]] <- bm$hh_bm$hh_number
   hh_t_r <- lapply(hh_t_r, prep_target, reg, tz)
+  hh_t_r
+
+  x <- bm$hh_bm$hh_number
 
   if(reg_sample){
     per_s_r <- per_s[per_s$region == reg,]
@@ -219,6 +240,8 @@ ipf_seed <- function(reg_tz, hh_s, per_s, bm, p, reg_sample = FALSE, verbose = F
   }
 
   per_s_r <- per_s_r[names(per_s_r)[!names(per_s_r) %in% c("region")]]
+  per_s_r
+  miss_var_summary(per_s_r)
 
   per_t_r <- list()
   per_t_r[["age"]] <- bm$per_bm$per_age
@@ -226,6 +249,26 @@ ipf_seed <- function(reg_tz, hh_s, per_s, bm, p, reg_sample = FALSE, verbose = F
   per_t_r[["urban_rural"]] <- bm$per_bm$per_urban_rural
   per_t_r[["occupation"]] <- bm$per_bm$per_occ
   per_t_r <- lapply(per_t_r, prep_target, reg, tz)
+
+  age_check <- per_t_r[[1]]
+  age_check
+  unique(per_s_r$age)
+  miss_var_summary(age_check)
+
+  sex_check <- per_t_r[[2]]
+  sex_check
+  miss_var_summary(sex_check)
+  unique(per_s_r$sex)
+
+  urban_rural_check <- per_t_r[[3]]
+  urban_rural_check
+  miss_var_summary(urban_rural_check)
+  unique(per_s_r$urban_rural)
+
+  occupation_check <- per_t_r[[4]]
+  occupation_check
+  miss_var_summary(occupation_check)
+  unique(per_s_r$occupation)
 
   sim <- ipfr::ipu(hh_s_r, hh_t_r, per_s_r, per_t_r, max_iterations = max_iter, verbose = verbose,
                    max_ratio = max_ratio, min_ratio = min_ratio, relative_gap = relative_gap, absolute_diff = absolute_diff)
@@ -251,6 +294,13 @@ secondary_seed <- per_s_r
 secondary_targets <- per_t_r
 primary_id = "id"
 secondary_importance = 1
+relative_gap = 0.01
+max_iterations = 100
+absolute_diff = 10
+weight_floor = 0.00001
+verbose = TRUE
+max_ratio = 10000
+min_ratio = 0.0001
 
 ?ipfr::ipu
 function (primary_seed, primary_targets, secondary_seed = NULL,
